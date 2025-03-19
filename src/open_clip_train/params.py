@@ -475,6 +475,12 @@ def parse_args(args):
         type=str,
         help='A string to specify a specific distributed loss implementation.'
     )
+    parser.add_argument(
+        "--train-dot-product",
+        default=False,
+        action="store_true",
+        help='Use dot product without normalization for contrastive loss when training.'
+    )
 
     args = parser.parse_args(args)
 

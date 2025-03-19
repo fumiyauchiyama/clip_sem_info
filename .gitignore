@@ -3,6 +3,7 @@
 models/
 features/
 results/
+output/
 
 tests/data/
 *.pt
