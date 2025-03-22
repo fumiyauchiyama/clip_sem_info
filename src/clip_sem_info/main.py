@@ -188,10 +188,10 @@ if __name__ == "__main__":
     # model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
     # ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_17-10_06_09-model_ViT-B-32-lr_0.001-b_3000-j_8-p_amp_bf16/checkpoints/epoch_32.pt"
 
-    # normalize = True
-    # model_arch = 'ViT-B-32'
-    # model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
-    # ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_17-10_06_26-model_ViT-B-32-lr_0.001-b_3000-j_8-p_amp_bf16/checkpoints/epoch_32.pt"
+    normalize = True
+    model_arch = 'ViT-B-32'
+    model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
+    ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_17-10_06_26-model_ViT-B-32-lr_0.001-b_3000-j_8-p_amp_bf16/checkpoints/epoch_32.pt"
     
     ######## EXP 9(w/ normalize) ########
 
@@ -202,10 +202,10 @@ if __name__ == "__main__":
 
     ############### EXP 8 ###############
 
-    normalize = False
-    model_arch = 'ViT-B-32'
-    model_type: Literal["CLIP", "SIGLIP"] = "CLIP"
-    ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_16-14_18_45-model_ViT-B-32-lr_0.001-b_3000-j_8-p_amp_bf16/checkpoints/epoch_37.pt"
+    # normalize = False
+    # model_arch = 'ViT-B-32'
+    # model_type: Literal["CLIP", "SIGLIP"] = "CLIP"
+    # ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_16-14_18_45-model_ViT-B-32-lr_0.001-b_3000-j_8-p_amp_bf16/checkpoints/epoch_37.pt"
 
     # normalize = True
     # model_arch = 'ViT-B-32'
@@ -248,8 +248,8 @@ if __name__ == "__main__":
     data_dir = "/groups/gag51404/fumiyau/data/cc12m/cc12m/{00000..01242}.tar" 
     num_samples = 4000
 
-    normalize_prob: bool = True # 正規化して経験分布にする
-    prior_type: Literal["UNIFORM", "MODEL"] = "MODEL"
+    normalize_prob: bool = False # 正規化して経験分布にする
+    prior_type: Literal["UNIFORM", "MODEL", "MEAN"] = "MEAN"
 
     # make save dir
     model_name_list = ckpt.split("/")
@@ -357,6 +357,9 @@ if __name__ == "__main__":
         prior_image = torch.ones_like(prior_image) / len(prior_image)
     elif prior_type == "MODEL":
         pass
+    elif prior_type == "MEAN":
+        prior_text = get_mean_features(posterior_text)
+        prior_image = get_mean_features(posterior_image)
     else:
         raise ValueError(f"prior_type should be either UNIFORM or MODEL: {prior_type}")
 
