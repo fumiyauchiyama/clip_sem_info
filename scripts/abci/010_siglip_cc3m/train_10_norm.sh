@@ -1,7 +1,7 @@
 #!/bin/sh
 #PBS -q rt_HF
 #PBS -l select=1
-#PBS -l walltime=24:00:00
+#PBS -l walltime=10:00:00
 #PBS -P gag51404
 
 cd /groups/gag51404/fumiyau/repos/clip_sem_info
@@ -17,7 +17,7 @@ torchrun --nproc_per_node 8 -m open_clip_train.main \
   --siglip \
   --report-to wandb \
   --wandb-project-name clip-sem-info \
-  --batch-size 3000 \
+  --batch-size 320 \
   --precision amp_bf16 \
   --workers 8 \
   --imagenet-val /groups/gag51404/fumiyau/data/imagenet_1k/val \
