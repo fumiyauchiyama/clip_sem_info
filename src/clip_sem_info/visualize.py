@@ -77,7 +77,7 @@ def save_grid(
     save_dir = os.path.join(save_dir, date_str)
     os.makedirs(save_dir, exist_ok=True)
 
-    time_str = time.strftime("%Y%m%d-%H%M")
+    time_str = time.strftime("%Y%m%d-%H%M%S")
     save_name = f"{time_str}_{save_name_prefix}"
     save_name = save_name.replace(" ", "_").replace(".", "_")
     save_path = os.path.join(save_dir, f"{save_name}.png")

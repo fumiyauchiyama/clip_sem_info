@@ -56,16 +56,16 @@ def calc_metrics(
 ):
     if lists is None:
         lists = dict()
-    lists["ot_angle"] = []
-    lists["ot_euclid"] = []
-    lists["norm"] = []
-    lists["norm_centerized"] = []
-    lists["norm_G"] = []
-    lists["kl"] = []
+    lists['$OT_{angle}$'] = []
+    lists['$OT_{euclid}$'] = []
+    lists['$||u||^2$'] = []
+    lists['$||u-u_0||^2$'] = []
+    lists['$(u-u_0)^T G (u-u_0)$'] = []
+    lists['$2KL$'] = []
     if isinstance(eval_data[0], str):
-        lists["chars"] = []
-        lists["words"] = []
-        lists["-log(p)"] = []
+        lists['chars'] = []
+        lists['words'] = []
+        lists['$-log(p)$'] = []
 
     v_hat = torch.mean(sample_emb, dim=0).to(device)
     G = compute_G(sample_emb, v_hat, prior).to(device)  # type: ignore
@@ -95,22 +95,22 @@ def calc_metrics(
         centerized_norm = torch.linalg.norm(centerized_u, dim=0)
         norm_G = (centerized_u[None, :] @ G @ centerized_u[:, None]).item()
 
-        lists["ot_angle"].append(ot_dist_a.item())
-        lists["ot_euclid"].append(ot_dist_e.item())
-        lists["kl"].append(kl_dist.item())
-        lists["norm"].append(raw_norm.item())
-        lists["norm_centerized"].append(centerized_norm.item())
-        lists["norm_G"].append(norm_G)
+        lists['$OT_{angle}$'].append(ot_dist_a.item())
+        lists['$OT_{euclid}$'].append(ot_dist_e.item())
+        lists['$2KL$'].append(2 * kl_dist.item())
+        lists['$||u||^2$'].append(raw_norm.item() ** 2)
+        lists['$||u-u_0||^2$'].append(centerized_norm.item() ** 2)
+        lists['$(u-u_0)^T G (u-u_0)$'].append(norm_G)
         if isinstance(condition, str):
             text = condition
             len_words = len(text.split())
-            lists["chars"].append(len(text))
-            lists["words"].append(len_words)
-            input_ids = lm_tokenizer.encode(text, return_tensors="pt").to(lm.device)  # type: ignore
+            lists['chars'].append(len(text))
+            lists['words'].append(len_words)
+            input_ids = lm_tokenizer.encode(text, return_tensors="pt").to(lm.device) # type: ignore
             with torch.no_grad():
-                output = lm(input_ids, labels=input_ids, num_items_in_batch=1)  # type: ignore
+                output = lm(input_ids, labels=input_ids, num_items_in_batch=1) # type: ignore
             loss = output.loss
-            lists["-log(p)"].append(loss.item())
+            lists['$-log(p)$'].append(loss.item())
         else:
             text = ""
             len_words = 0
