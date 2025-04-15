@@ -8,8 +8,12 @@ import io
 import os
 import csv
 
-from typing import Literal, Tuple, List, Union, Any
+from typing import Literal, Tuple, List, Union, Any, Optional
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+from sklearn.linear_model import LinearRegression
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 def get_features(
     model: torch.nn.Module,
@@ -106,6 +110,7 @@ def plot_kl_norm(
     title: str,
     model_name: str,
     save_dir: str = ".",
+    prob_estimated: torch.Tensor = None,
     ) -> None:
 
     save_dir = f"{save_dir}/plots"
@@ -114,10 +119,42 @@ def plot_kl_norm(
     os.makedirs(save_dir, exist_ok=True)
 
     fig, ax = plt.subplots()
-    ax.scatter(norm, 2 * kl, marker='.')
+    if prob_estimated is not None:
+        sc = ax.scatter(
+            norm, 2 * kl, 
+            c=prob_estimated, 
+            cmap='plasma',
+            norm=mcolors.LogNorm(vmin=prob_estimated.min(), vmax=prob_estimated.max()),
+            marker='.', s=5,
+            )
+        plt.colorbar(sc, label='LM prob')
+    else:
+        ax.scatter(norm, 2 * kl, marker='.', s=5,)
+
+    # scikit-learn で回帰
+    X = norm.reshape(-1, 1)  # sklearn 用に 2次元に
+    model = LinearRegression()
+    model.fit(X, 2 * kl)
+    slope = model.coef_[0]
+    intercept = model.intercept_
+
+    # R^2 を計算
+    r2 = model.score(X, 2 * kl)
+
+    # 回帰直線を描画
+    x_line = np.linspace(norm.min(), norm.max(), 200)
+    y_line = slope * x_line + intercept
+    ax.plot(x_line, y_line, color='gray',
+            label=f'y = {slope:.3f}x + {intercept:.3f}\n$R^2$ = {r2:.3f}')
+
+    # 凡例の表示
+    plt.legend()
+
     ax.set_xlabel("$Norm^2$")
     ax.set_ylabel("2KL")
     ax.set_title(title)
+
+    fig.tight_layout()
     plt.savefig(f"{save_dir}/{title.replace(' ', '_')}.png")
 
     print(f"Saved {title} plot to {save_dir}")
@@ -181,6 +218,30 @@ if __name__ == "__main__":
 
     ### SELECT PARAMS
 
+    ############## EXP 11 ##############
+
+    normalize = False
+    model_arch = 'ViT-B-32'
+    model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
+    ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_22-14_17_14-model_ViT-B-32-lr_0.001-b_320-j_8-p_amp_bf16/checkpoints/epoch_64.pt"
+
+    # normalize = True
+    # model_arch = 'ViT-B-32'
+    # model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
+    # ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_22-14_20_09-model_ViT-B-32-lr_0.001-b_320-j_8-p_amp_bf16/checkpoints/epoch_64.pt"
+    
+    ####### EXP 11(w/ normalize) ########
+
+    # normalize = True
+    # model_arch = 'ViT-B-32'
+    # model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
+    # ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_22-14_17_14-model_ViT-B-32-lr_0.001-b_320-j_8-p_amp_bf16/checkpoints/epoch_64.pt"
+
+    # normalize = False
+    # model_arch = 'ViT-B-32'
+    # model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
+    # ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_22-14_20_09-model_ViT-B-32-lr_0.001-b_320-j_8-p_amp_bf16/checkpoints/epoch_64.pt"
+
     ############### EXP 9 ###############
 
     # normalize = False
@@ -188,10 +249,10 @@ if __name__ == "__main__":
     # model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
     # ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_17-10_06_09-model_ViT-B-32-lr_0.001-b_3000-j_8-p_amp_bf16/checkpoints/epoch_32.pt"
 
-    normalize = True
-    model_arch = 'ViT-B-32'
-    model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
-    ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_17-10_06_26-model_ViT-B-32-lr_0.001-b_3000-j_8-p_amp_bf16/checkpoints/epoch_32.pt"
+    # normalize = True
+    # model_arch = 'ViT-B-32'
+    # model_type: Literal["CLIP", "SIGLIP"] = "SIGLIP"
+    # ckpt = "/groups/gag51404/fumiyau/repos/clip_sem_info/src/logs/2025_03_17-10_06_26-model_ViT-B-32-lr_0.001-b_3000-j_8-p_amp_bf16/checkpoints/epoch_32.pt"
     
     ######## EXP 9(w/ normalize) ########
 
@@ -246,9 +307,12 @@ if __name__ == "__main__":
     #####################################
 
     data_dir = "/groups/gag51404/fumiyau/data/cc12m/cc12m/{00000..01242}.tar" 
+    # data_dir = "/groups/gag51404/fumiyau/data/cc3m/cc3m_train/{00000..00331}.tar"
     num_samples = 4000
 
-    normalize_prob: bool = False # 正規化して経験分布にする
+    lm_name: Optional[str] = None
+
+    normalize_prob: bool = True # 正規化して経験分布にする
     prior_type: Literal["UNIFORM", "MODEL", "MEAN"] = "MEAN"
 
     # make save dir
@@ -287,8 +351,28 @@ if __name__ == "__main__":
         count += 1
         if count >= num_samples:
             break
+
+    print("Data loaded")
+
+    text_lm_probs = None
+    if lm_name is not None:
+        print("Start loading language model")
+        # Estimate sentence prob via language model
+        lm_tokenizer = AutoTokenizer.from_pretrained(lm_name)
+        lm_model = AutoModelForCausalLM.from_pretrained(lm_name).to("cuda")
+        lm_model.eval()
+
+        text_lm_probs = torch.zeros(len(text_input))
+        for idx, t in enumerate(text_input):
+            input_ids = lm_tokenizer.encode(t, return_tensors="pt").to("cuda")
+            with torch.no_grad():
+                outputs = lm_model(input_ids, labels=input_ids)
+            loss = outputs.loss
+            text_lm_probs[idx] = torch.exp(-loss)
+
+        print("Language model loaded.")
     
-    print("Data loaded. Start loading model")
+    print("Start loading CLIP model")
 
     # load model
     model_kwargs = {}
@@ -331,8 +415,8 @@ if __name__ == "__main__":
     center_image = get_mean_features(image_features)
 
     # concat center and features
-    cat_text = torch.cat([center_text.unsqueeze(0), text_features], dim=0)
-    cat_image = torch.cat([center_image.unsqueeze(0), image_features], dim=0)
+    cat_text = torch.cat([center_text.unsqueeze(0).detach().clone(), text_features.detach().clone()], dim=0)
+    cat_image = torch.cat([center_image.unsqueeze(0).detach().clone(), image_features.detach().clone()], dim=0)
 
     if normalize:
         cat_text = F.normalize(cat_text, dim=-1)
@@ -387,11 +471,11 @@ if __name__ == "__main__":
     norm_image_G = torch.diag((centerized_image_features @ G_image @ centerized_image_features.T),0).detach().cpu().numpy()
 
     # plot
-    plot_kl_norm(norm_text ** 2, kl_text, "Text", model_name, save_dir=save_dir)
+    plot_kl_norm(norm_text ** 2, kl_text, "Text", model_name, save_dir=save_dir, prob_estimated=text_lm_probs)
     plot_kl_norm(norm_image ** 2, kl_image, "Image", model_name, save_dir=save_dir)
-    plot_kl_norm(norm_text_centerized ** 2, kl_text, "Text_centerized", model_name, save_dir=save_dir)
+    plot_kl_norm(norm_text_centerized ** 2, kl_text, "Text_centerized", model_name, save_dir=save_dir, prob_estimated=text_lm_probs)
     plot_kl_norm(norm_image_centerized ** 2, kl_image, "Image_centerized", model_name, save_dir=save_dir)
-    plot_kl_norm(norm_text_G, kl_text, "Text with G", model_name, save_dir=save_dir)
+    plot_kl_norm(norm_text_G, kl_text, "Text with G", model_name, save_dir=save_dir, prob_estimated=text_lm_probs)
     plot_kl_norm(norm_image_G, kl_image, "Image with G", model_name, save_dir=save_dir)
 
     # save top and bottom samples
