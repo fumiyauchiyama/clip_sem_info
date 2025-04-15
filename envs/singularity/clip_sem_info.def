@@ -4,4 +4,5 @@ From: nvcr.io/nvidia/pytorch:24.05-py3
 %post
     pip install -U pip
     pip install 'open_clip_torch[training]'
-    pip install wandb
+    pip install wandb transformers datasets accelerate
+    pip install POT torchtyping datasets geomloss[full]
