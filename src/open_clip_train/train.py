@@ -98,7 +98,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
 
         if args.accum_freq == 1:
             with autocast():
-                model_out = model(images, texts)
+                model_out = model(images, texts, normalize=(not args.train_dot_product))
                 logit_scale = model_out["logit_scale"]
                 if args.distill:
                     with torch.no_grad():
@@ -114,7 +114,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             # First, cache the features without any gradient tracking.
             with torch.no_grad():
                 with autocast():
-                    model_out = model(images, texts)
+                    model_out = model(images, texts, normalize=(not args.train_dot_product))
 
                     for f in ("logit_scale", "logit_bias"):
                         model_out.pop(f, None)
@@ -141,7 +141,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 images = accum_images[j]
                 texts = accum_texts[j]
                 with autocast():
-                    model_out = model(images, texts)
+                    model_out = model(images, texts, normalize=(not args.train_dot_product))
 
                     inputs_no_accum = {}
                     inputs_no_accum["logit_scale"] = logit_scale = model_out.pop("logit_scale")
