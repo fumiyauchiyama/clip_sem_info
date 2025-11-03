@@ -393,6 +393,25 @@ def main(args):
             model.load_state_dict(checkpoint)
             logging.info(f"=> loaded checkpoint '{args.resume}' (epoch {start_epoch})")
 
+    extra_preprocess_img = None
+    iwl_model = None
+    prompt_emb = None
+    if args.iwl:
+        iwl_model, _, extra_preprocess_img = create_model_and_transforms(
+            args.iwl_ref_model_name,
+            args.iwl_ref_model_pretrained,
+        )
+        iwl_model.eval().to(device)
+        # get reference embedding
+        iwl_tokenizer = get_tokenizer(args.iwl_ref_model_name, cache_dir=args.cache_dir,)
+        prompt = args.iwl_prefix + args.iwl_str
+        logging.info(f"iwl prompt is '{prompt}'")
+        prompt_tokens = iwl_tokenizer([prompt]).to(device)
+        with torch.no_grad():
+            prompt_emb = iwl_model.encode_text(prompt_tokens)[0]
+            prompt_emb /= prompt_emb.norm(dim=-1, keepdim=True) # ['d_model']
+            prompt_emb *= args.iwl_logit_scale
+
     # initialize datasets
     tokenizer = get_tokenizer(args.model, cache_dir=args.cache_dir, context_length=args.force_context_length)
     data = get_data(
@@ -400,6 +419,7 @@ def main(args):
         (preprocess_train, preprocess_val),
         epoch=start_epoch,
         tokenizer=tokenizer,
+        extra_preprocess_img=extra_preprocess_img,
     )
     assert len(data), 'At least one train or eval dataset must be specified.'
 
@@ -480,7 +500,19 @@ def main(args):
         if is_master(args):
             logging.info(f'Start epoch {epoch}')
 
-        train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=writer)
+        train_one_epoch(
+            model,
+            data,
+            loss,
+            epoch,
+            optimizer,
+            scaler,
+            scheduler,
+            dist_model,
+            args,tb_writer=writer,
+            iwl_model=iwl_model,
+            iwl_prompt_emb=prompt_emb,
+            )
         completed_epoch = epoch + 1
 
         if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):

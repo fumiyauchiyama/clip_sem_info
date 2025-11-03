@@ -325,7 +325,7 @@ class ResampledShards2(IterableDataset):
                 yield dict(url=self.rng.choices(self.urls, weights=self.weights, k=1)[0])
 
 
-def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokenizer=None):
+def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokenizer=None, extra_preprocess_img=None):
     input_shards = args.train_data if is_train else args.val_data
     assert input_shards is not None
     resampled = getattr(args, 'dataset_resampled', False) and is_train
@@ -390,8 +390,11 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
         wds.select(filter_no_caption_or_no_image),
         wds.decode("pilrgb", handler=log_and_continue),
         wds.rename(image="jpg;png;jpeg;webp", text="txt"),
+        wds.map(lambda s: ({**s, "image_extra": extra_preprocess_img(s["image"])}
+            if extra_preprocess_img else s)),
         wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0]),
-        wds.to_tuple("image", "text"),
+        (wds.to_tuple("image", "image_extra", "text") if extra_preprocess_img
+            else wds.to_tuple("image", "text")),
         wds.batched(args.batch_size, partial=not is_train)
     ])
 
@@ -543,13 +546,13 @@ def get_dataset_fn(data_path, dataset_type):
         raise ValueError(f"Unsupported dataset type: {dataset_type}")
     
 
-def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
+def get_data(args, preprocess_fns, epoch=0, tokenizer=None, extra_preprocess_img=None,):
     preprocess_train, preprocess_val = preprocess_fns
     data = {}
 
     if args.train_data or args.dataset_type == "synthetic":
         data["train"] = get_dataset_fn(args.train_data, args.dataset_type)(
-            args, preprocess_train, is_train=True, epoch=epoch, tokenizer=tokenizer)
+            args, preprocess_train, is_train=True, epoch=epoch, tokenizer=tokenizer, extra_preprocess_img=extra_preprocess_img)
 
     if args.val_data:
         data["val"] = get_dataset_fn(args.val_data, args.dataset_type)(
