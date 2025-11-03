@@ -479,6 +479,43 @@ def parse_args(args):
         type=str,
         help='A string to specify a specific distributed loss implementation.'
     )
+    # For Importance-Weighted Learning (IWL)
+    parser.add_argument(
+        "--iwl",
+        default=False,
+        action='store_true',
+        help="Do Importance-Weighted Learning (IWL)",
+    )
+    parser.add_argument(
+        "--iwl-prefix",
+        default="A photo of ",
+        type=str,
+        help='A prefix for condition text for IWL',
+    )
+    parser.add_argument(
+        "--iwl-str",
+        default=None,
+        type=str,
+        help='A string to specify a specific domain for IWL'
+    )
+    parser.add_argument(
+        "--iwl-ref-model-name",
+        default=None,
+        type=str,
+        help='A reference model for IWL'
+    )
+    parser.add_argument(
+        "--iwl-ref-model-pretrained",
+        default=None,
+        type=str,
+        help='Pretrained name of reference model for IWL'
+    )
+    parser.add_argument(
+        "--iwl-logit-scale",
+        default=1.0,
+        type=float,
+        help="A logit_scale for IWL. Make sure that this arg is an exponent of model's logit_scale"
+    )
 
     args = parser.parse_args(args)
 

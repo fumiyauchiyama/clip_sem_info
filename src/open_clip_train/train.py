@@ -61,7 +61,20 @@ def backward(total_loss, scaler):
         total_loss.backward()
 
 
-def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=None):
+def train_one_epoch(
+    model,
+    data,
+    loss,
+    epoch,
+    optimizer,
+    scaler,
+    scheduler,
+    dist_model,
+    args,
+    tb_writer=None,
+    iwl_model=None,
+    iwl_prompt_emb=None,
+    ):
     device = torch.device(args.device)
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)
@@ -89,7 +102,16 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         if not args.skip_scheduler:
             scheduler(step)
 
-        images, texts = batch
+        iwl_weight = None
+        if iwl_model is not None:
+            images, images_extra, texts = batch
+            images_extra = images_extra.to(device=device, dtype=input_dtype, non_blocking=True)
+            with torch.no_grad():
+                iwl_img_features = iwl_model.encode_image(images_extra)
+                iwl_img_features /= iwl_img_features.norm(dim=-1, keepdim=True)
+                iwl_weight = (iwl_img_features @ iwl_prompt_emb).exp()
+        else:
+            images, texts = batch
         images = images.to(device=device, dtype=input_dtype, non_blocking=True)
         texts = texts.to(device=device, non_blocking=True)
 
@@ -104,7 +126,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                     with torch.no_grad():
                         dist_model_out = dist_model(images, texts)
                     model_out.update({f'dist_{k}': v for k, v in dist_model_out.items()})
-                losses = loss(**model_out, output_dict=True)
+                losses = loss(**model_out, output_dict=True, weight=iwl_weight,)
 
                 total_loss = sum(losses.values())
                 losses["loss"] = total_loss

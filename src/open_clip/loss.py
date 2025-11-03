@@ -136,6 +136,7 @@ class ClipLoss(nn.Module):
             logit_scale,
             logit_bias=None,
             output_dict=False,
+            weight=None,
     ):
         device = image_features.device
         logits_per_image, logits_per_text = self.get_logits(
@@ -147,10 +148,33 @@ class ClipLoss(nn.Module):
 
         labels = self.get_ground_truth(device, logits_per_image.shape[0])
 
-        total_loss = (
-            F.cross_entropy(logits_per_image, labels) +
-            F.cross_entropy(logits_per_text, labels)
-        ) / 2
+        if weight is not None:
+            # N of logits（local or global）
+            N = logits_per_image.shape[0]
+            # If local_loss=False and world_size>1, then logits length should be global. So gather weight
+            if weight.shape[0] != N:
+                if self.world_size > 1 and not self.local_loss:
+                    if self.use_horovod and hvd is not None:
+                        with torch.no_grad():
+                            weight = hvd.allgather(weight)
+                    else:
+                        parts = [torch.zeros_like(weight) for _ in range(self.world_size)]
+                        dist.all_gather(parts, weight)
+                        weight = torch.cat(parts, dim=0)
+                    if weight.shape[0] != N:
+                        raise ValueError(f"gathered weight length {weight.shape[0]} != logits length {N}")
+                else:
+                    raise ValueError(f"weight length {weight.shape[0]} != logits length {N}")
+
+            li = F.cross_entropy(logits_per_image, labels, reduction='none')
+            lt = F.cross_entropy(logits_per_text,  labels, reduction='none')
+            loss_vec = 0.5 * (li + lt)
+            total_loss = (weight * loss_vec).mean()
+        else: 
+            total_loss = (
+                F.cross_entropy(logits_per_image, labels) +
+                F.cross_entropy(logits_per_text, labels)
+            ) / 2
 
         return {"contrastive_loss": total_loss} if output_dict else total_loss
 
